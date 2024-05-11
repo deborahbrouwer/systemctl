@@ -147,15 +147,62 @@ pub fn unfreeze(unit: &str) -> std::io::Result<ExitStatus> {
 /// ie., service could be or is actively deployed
 /// and manageable by systemd
 pub fn exists(unit: &str) -> std::io::Result<bool> {
-    let unit_list = list_units(None, None, Some(unit))?;
+    let unit_list = list_unit_files(None, None, Some(unit))?;
     Ok(!unit_list.is_empty())
 }
 
-/// Returns a `Vector` of `UnitList` structs extracted from systemctl listing.   
+/// Returns a `Vector` of `UnitList` structs extracted from systemctl
+/// systemctl list-units
+pub fn list_units(
+    type_filter: Option<&str>,
+    state_filter: Option<&str>,
+    pattern: Option<&str>,
+    all: bool,
+) -> std::io::Result<Vec<UnitList>> {
+    let mut args: Vec<&str> = vec!["list-units"];
+    if let Some(filter) = type_filter {
+        args.push("--type");
+        args.push(filter)
+    }
+    if let Some(filter) = state_filter {
+        args.push("--state");
+        args.push(filter)
+    }
+    if let Some(pattern) = pattern {
+        args.push(pattern)
+    }
+    if all {
+        args.push("--all");
+    }
+    let mut result: Vec<UnitList> = Vec::new();
+    let content = systemctl_capture(args)?;
+    let lines = content
+        .lines()
+        .filter(|line| line.contains('.') && !line.ends_with('.'));
+
+    for l in lines {
+        let parsed: Vec<&str> = l.split_ascii_whitespace().collect();
+        let vendor_preset = match parsed[2] {
+            "-" => None,
+            "enabled" => Some(true),
+            "disabled" => Some(false),
+            _ => None,
+        };
+        result.push(UnitList {
+            unit_file: parsed[0].to_string(),
+            state: parsed[1].to_string(),
+            vendor_preset,
+        })
+    }
+    Ok(result)
+}
+
+/// Returns a `Vector` of `UnitList` structs extracted from systemctl
+/// using the command: list-unit-files
 ///  + type filter: optional `--type` filter
 ///  + state filter: optional `--state` filter
 ///  + glob filter: optional unit name filter
-pub fn list_units_full(
+pub fn list_unit_files_full(
     type_filter: Option<&str>,
     state_filter: Option<&str>,
     glob: Option<&str>,
@@ -208,27 +255,28 @@ pub struct UnitList {
     pub vendor_preset: Option<bool>,
 }
 
-/// Returns a `Vector` of unit names extracted from systemctl listing.   
+/// Returns a `Vector` of unit names extracted from systemctl
+/// using the command: list-unit-files
 ///  + type filter: optional `--type` filter
 ///  + state filter: optional `--state` filter
 ///  + glob filter: optional unit name filter
-pub fn list_units(
+pub fn list_unit_files(
     type_filter: Option<&str>,
     state_filter: Option<&str>,
     glob: Option<&str>,
 ) -> std::io::Result<Vec<String>> {
-    let list = list_units_full(type_filter, state_filter, glob);
+    let list = list_unit_files_full(type_filter, state_filter, glob);
     Ok(list?.iter().map(|n| n.unit_file.clone()).collect())
 }
 
 /// Returns list of services that are currently declared as disabled
 pub fn list_disabled_services() -> std::io::Result<Vec<String>> {
-    list_units(Some("service"), Some("disabled"), None)
+    list_unit_files(Some("service"), Some("disabled"), None)
 }
 
 /// Returns list of services that are currently declared as enabled
 pub fn list_enabled_services() -> std::io::Result<Vec<String>> {
-    list_units(Some("service"), Some("enabled"), None)
+    list_unit_files(Some("service"), Some("enabled"), None)
 }
 
 /// `AutoStartStatus` describes the Unit current state
@@ -730,7 +778,7 @@ mod test {
 
     #[test]
     fn test_service_unit_construction() {
-        let units = list_units(None, None, None).unwrap(); // all units
+        let units = list_unit_files(None, None, None).unwrap(); // all units
         for unit in units {
             let unit = unit.as_str();
             if unit.contains('@') {
@@ -756,8 +804,8 @@ mod test {
         }
     }
     #[test]
-    fn test_list_units_full() {
-        let units = list_units_full(None, None, None).unwrap(); // all units
+    fn test_list_unit_files_full() {
+        let units = list_unit_files_full(None, None, None).unwrap(); // all units
         for unit in units {
             println!("####################################");
             println!("Unit: {}", unit.unit_file);
