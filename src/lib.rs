@@ -482,6 +482,37 @@ pub struct Unit {
 // TODO: Remove this lint fix
 #[allow(clippy::if_same_then_else)]
 impl Unit {
+    pub fn new() -> Self {
+        Self {
+            name: String::new(),
+            utype: Default::default(), // default is service
+            description: None,
+            state: Default::default(),      // default is masked
+            auto_start: Default::default(), // default is disabled
+            active: false,
+            preset: false,
+            script: String::new(),
+            restart_policy: None,
+            kill_mode: None,
+            process: None,
+            pid: None,
+            tasks: None,
+            cpu: None,
+            memory: None,
+            mounted: None,
+            mountpoint: None,
+            docs: None,
+            wants: None,
+            wanted_by: None,
+            also: None,
+            before: None,
+            after: None,
+            exec_start: None,
+            exec_reload: None,
+            transient: false,
+        }
+    }
+
     /// Builds a new `Unit` structure by retrieving
     /// structure attributes with a `systemctl status $unit` call
     pub fn from_systemctl(name: &str) -> std::io::Result<Unit> {
