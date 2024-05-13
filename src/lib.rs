@@ -151,6 +151,11 @@ pub fn exists(unit: &str) -> std::io::Result<bool> {
     Ok(!unit_list.is_empty())
 }
 
+/// systemctl reset-failed
+pub fn reset_failed(pattern: &str) -> std::io::Result<ExitStatus> {
+    systemctl(vec!["reset-failed", pattern])
+}
+
 /// Returns a `Vector` of `UnitList` structs extracted from systemctl
 /// systemctl list-units
 pub fn list_units(
